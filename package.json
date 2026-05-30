@@ -1,0 +1,23 @@
+{
+  "name": "create-ropo",
+  "version": "0.1.0",
+  "description": "Scaffold a new project from the stack-base boilerplate.",
+  "type": "module",
+  "bin": {
+    "create-ropo": "index.js"
+  },
+  "files": [
+    "index.js"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "create",
+    "scaffold",
+    "boilerplate",
+    "nextjs",
+    "stack-base"
+  ],
+  "license": "MIT"
+}
