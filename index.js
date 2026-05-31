@@ -172,7 +172,13 @@ async function main() {
   let installed = false
   if (doInstall) {
     console.log(c.dim(`→ Installing dependencies with ${pm} …\n`))
-    const r = spawnSync(pm, ["install"], { stdio: "inherit", cwd: dir })
+    // On Windows, pnpm/npm/yarn are `.cmd` shims that spawnSync can't run
+    // without a shell.
+    const r = spawnSync(pm, ["install"], {
+      stdio: "inherit",
+      cwd: dir,
+      shell: process.platform === "win32",
+    })
     installed = !r.error && r.status === 0
     if (!installed) {
       console.warn(
