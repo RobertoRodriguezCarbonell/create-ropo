@@ -167,15 +167,26 @@ async function main() {
     })
   }
 
+  // Dependency install is best-effort: a failure shouldn't throw away the
+  // scaffold. Warn and let the user run it manually.
+  let installed = false
   if (doInstall) {
     console.log(c.dim(`→ Installing dependencies with ${pm} …\n`))
-    run(pm, ["install"], { cwd: dir })
+    const r = spawnSync(pm, ["install"], { stdio: "inherit", cwd: dir })
+    installed = !r.error && r.status === 0
+    if (!installed) {
+      console.warn(
+        "\n" +
+          c.red(`⚠ \`${pm} install\` failed`) +
+          c.dim(" — your project is ready; run install manually (see below).")
+      )
+    }
   }
 
   const runCmd = pm === "npm" ? "npm run" : pm
   console.log("\n" + c.green("✓ Done!") + " Next steps:\n")
   console.log("  " + c.cyan(`cd ${target}`))
-  if (!doInstall) console.log("  " + c.cyan(`${pm} install`))
+  if (!installed) console.log("  " + c.cyan(`${pm} install`))
   console.log(
     "  " +
       c.cyan("cp .env.example .env.local") +

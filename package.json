@@ -1,6 +1,6 @@
 {
   "name": "create-ropo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold a new project from the stack-base boilerplate (Next.js 16 + Auth.js + Drizzle/Neon + Resend).",
   "type": "module",
   "bin": {
