@@ -1,7 +1,7 @@
 {
   "name": "create-ropo",
   "version": "0.1.0",
-  "description": "Scaffold a new project from the stack-base boilerplate.",
+  "description": "Scaffold a new project from the stack-base boilerplate (Next.js 16 + Auth.js + Drizzle/Neon + Resend).",
   "type": "module",
   "bin": {
     "create-ropo": "index.js"
@@ -16,8 +16,24 @@
     "create",
     "scaffold",
     "boilerplate",
+    "starter",
     "nextjs",
+    "next.js",
+    "authjs",
+    "drizzle",
     "stack-base"
   ],
-  "license": "MIT"
+  "author": "Roberto Rodriguez Carbonell",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RobertoRodriguezCarbonell/create-ropo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RobertoRodriguezCarbonell/create-ropo/issues"
+  },
+  "homepage": "https://github.com/RobertoRodriguezCarbonell/create-ropo#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }
