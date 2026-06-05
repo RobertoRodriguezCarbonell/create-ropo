@@ -12,24 +12,38 @@ import { stdin as input, stdout as output } from "node:process"
 import { createInterface } from "node:readline/promises"
 
 /**
- * create-ropo — scaffolds a new project from the stack-base boilerplate.
+ * create-ropo — scaffolds a new project from a stack-* boilerplate archetype.
  *
  * Usage:
- *   pnpm create ropo my-app            (interactive)
- *   pnpm create ropo my-app -y         (accept defaults: install + git)
+ *   pnpm create ropo my-app                       (interactive)
+ *   pnpm create ropo my-app -t landing            (pick the archetype)
+ *   pnpm create ropo my-app -y                    (defaults: base + install + git)
  *   pnpm create ropo my-app --no-install --no-git
  *
- * v1 (base only): clone the template, strip its git history, rename the brand
- * to your project name, optionally init git + install dependencies.
+ * It clones the archetype's template repo, strips its git history, renames
+ * the brand to your project name, and optionally inits git + installs deps.
  *
- * The template defaults to the private stack-base repo, so cloning uses your
- * own git credentials. Override the source with the ROPO_TEMPLATE env var.
+ * Template repos are private, so cloning uses your own git credentials.
+ * Override the source repo of the chosen archetype with the ROPO_TEMPLATE
+ * env var.
  */
-const TEMPLATE_REPO =
-  process.env.ROPO_TEMPLATE ??
-  "https://github.com/RobertoRodriguezCarbonell/stack-base.git"
-
-const BRAND = "stack-base"
+const TEMPLATES = {
+  base: {
+    brand: "stack-base",
+    repo: "https://github.com/RobertoRodriguezCarbonell/stack-base.git",
+    desc: "the full wired stack (Auth.js, Drizzle/Neon, Resend, R2)",
+    // Shown after scaffolding, in order.
+    steps: ["cp .env.example .env.local", "db:migrate", "dev"],
+    docsHint: "See README.md for the full setup (Neon, GitHub OAuth, Resend…).",
+  },
+  landing: {
+    brand: "stack-landing",
+    repo: "https://github.com/RobertoRodriguezCarbonell/stack-landing.git",
+    desc: "pre-launch landing page with a Resend waitlist (no auth/DB)",
+    steps: ["cp .env.example .env.local", "dev"],
+    docsHint: "See README.md for the setup (Resend) and the placeholder copy.",
+  },
+}
 
 const c = {
   dim: (s) => `\x1b[2m${s}\x1b[22m`,
@@ -78,6 +92,8 @@ const SKIP_FILES = new Set([
 ])
 const TEXT_EXT =
   /\.(ts|tsx|js|jsx|mjs|cjs|mts|json|md|mdx|css|html|txt|yaml|yml)$/i
+/** Extensionless text files that must also be rebranded (e.g. .env.example). */
+const isTextFile = (name) => TEXT_EXT.test(name) || name.startsWith(".env")
 
 /** Replace every occurrence of `from` with `to` in text files under `dir`. */
 function replaceInTree(dir, from, to) {
@@ -89,7 +105,7 @@ function replaceInTree(dir, from, to) {
     } else if (
       entry.isFile() &&
       !SKIP_FILES.has(entry.name) &&
-      TEXT_EXT.test(entry.name)
+      isTextFile(entry.name)
     ) {
       const file = join(dir, entry.name)
       const content = readFileSync(file, "utf8")
@@ -102,14 +118,35 @@ function replaceInTree(dir, from, to) {
 
 async function main() {
   const args = process.argv.slice(2)
-  const positionals = args.filter((a) => !a.startsWith("-"))
   const has = (...names) => names.some((n) => args.includes(n))
+
+  // Parse --template/-t (value or =form) and collect positionals, making
+  // sure the flag's value is not mistaken for the target directory.
+  let templateArg = null
+  const positionals = []
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === "-t" || a === "--template") {
+      templateArg = args[++i] ?? null
+    } else if (a.startsWith("--template=")) {
+      templateArg = a.slice("--template=".length)
+    } else if (!a.startsWith("-")) {
+      positionals.push(a)
+    }
+  }
+  if (templateArg && !TEMPLATES[templateArg]) {
+    die(
+      `Unknown template "${templateArg}". Available: ${Object.keys(TEMPLATES).join(", ")}.`
+    )
+  }
 
   const yes = has("-y", "--yes")
   const interactive = Boolean(input.isTTY) && !yes
 
   console.log(
-    "\n" + c.bold(c.cyan("create-ropo")) + c.dim("  scaffold from stack-base\n")
+    "\n" +
+      c.bold(c.cyan("create-ropo")) +
+      c.dim("  scaffold from a stack-* archetype\n")
   )
 
   const rl = interactive ? createInterface({ input, output }) : null
@@ -136,6 +173,29 @@ async function main() {
     die(`Directory "${target}" already exists and is not empty.`)
   }
 
+  // Archetype: flag wins, otherwise prompt (default base).
+  let templateKey = templateArg
+  if (!templateKey) {
+    if (interactive) {
+      console.log("")
+      for (const [key, t] of Object.entries(TEMPLATES)) {
+        console.log(`  ${c.cyan(key.padEnd(9))}${c.dim(t.desc)}`)
+      }
+      console.log("")
+      templateKey = await ask("Template", "base")
+      if (!TEMPLATES[templateKey]) {
+        rl?.close()
+        die(
+          `Unknown template "${templateKey}". Available: ${Object.keys(TEMPLATES).join(", ")}.`
+        )
+      }
+    } else {
+      templateKey = "base"
+    }
+  }
+  const tpl = TEMPLATES[templateKey]
+  const templateRepo = process.env.ROPO_TEMPLATE ?? tpl.repo
+
   // Install / git: flags win, otherwise prompt (or default when non-interactive).
   const doInstall = has("--no-install")
     ? false
@@ -151,20 +211,22 @@ async function main() {
 
   const pm = detectPackageManager()
 
-  console.log(c.dim(`\n→ Cloning template into ${target}/ …`))
-  run("git", ["clone", "--depth", "1", TEMPLATE_REPO, dir])
+  console.log(c.dim(`\n→ Cloning ${templateKey} template into ${target}/ …`))
+  run("git", ["clone", "--depth", "1", templateRepo, dir])
   rmSync(join(dir, ".git"), { recursive: true, force: true })
 
-  console.log(c.dim(`→ Renaming "${BRAND}" → "${name}" …`))
-  replaceInTree(dir, BRAND, name)
+  console.log(c.dim(`→ Renaming "${tpl.brand}" → "${name}" …`))
+  replaceInTree(dir, tpl.brand, name)
 
   if (doGit) {
     console.log(c.dim("→ Initializing git …"))
     run("git", ["init", "-q"], { cwd: dir })
     run("git", ["add", "-A"], { cwd: dir })
-    run("git", ["commit", "-q", "-m", "chore: initialize from stack-base"], {
-      cwd: dir,
-    })
+    run(
+      "git",
+      ["commit", "-q", "-m", `chore: initialize from ${tpl.brand}`],
+      { cwd: dir }
+    )
   }
 
   // Dependency install is best-effort: a failure shouldn't throw away the
@@ -193,16 +255,17 @@ async function main() {
   console.log("\n" + c.green("✓ Done!") + " Next steps:\n")
   console.log("  " + c.cyan(`cd ${target}`))
   if (!installed) console.log("  " + c.cyan(`${pm} install`))
-  console.log(
-    "  " +
-      c.cyan("cp .env.example .env.local") +
-      c.dim("   # fill in your credentials")
-  )
-  console.log("  " + c.cyan(`${runCmd} db:migrate`))
-  console.log("  " + c.cyan(`${runCmd} dev`) + "\n")
-  console.log(
-    c.dim("  See README.md for the full setup (Neon, GitHub OAuth, Resend…).\n")
-  )
+  for (const step of tpl.steps) {
+    if (step.startsWith("cp ")) {
+      console.log(
+        "  " + c.cyan(step) + c.dim("   # fill in your credentials")
+      )
+    } else {
+      console.log("  " + c.cyan(`${runCmd} ${step}`))
+    }
+  }
+  console.log("")
+  console.log(c.dim(`  ${tpl.docsHint}\n`))
 }
 
 main().catch((error) => die(error?.message ?? String(error)))
